@@ -14,6 +14,33 @@ struct Point3D {
   z: f32,
 }
 
+impl Point3D {
+  fn subtract(&self, other: &Point3D) -> Point3D {
+    Point3D {
+      x: self.x - other.x,
+      y: self.y - other.y,
+      z: self.z - other.z,
+    }
+  }
+
+  fn cross(&self, other: &Point3D) -> Point3D {
+    Point3D {
+      x: self.y * other.z - self.z * other.y,
+      y: self.z * other.x - self.x * other.z,
+      z: self.x * other.y - self.y * other.x,
+    }
+  }
+
+  fn normalize(&self) -> Point3D {
+    let len = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt();
+    Point3D {
+      x: self.x / len,
+      y: self.y / len,
+      z: self.z / len,
+    }
+  }
+}
+
 #[derive(Debug)]
 struct Camera {
   position: Point3D,
@@ -30,6 +57,16 @@ struct Triangle3D {
   p1: Point3D,
   p2: Point3D,
   p3: Point3D,
+  normal: Point3D,
+}
+
+impl Triangle3D {
+  fn new(p1: Point3D, p2: Point3D, p3: Point3D) -> Triangle3D {
+    let edge1 = p2.subtract(&p1);
+    let edge2 = p3.subtract(&p1);
+    let normal = edge2.cross(&edge1).normalize();
+    Triangle3D { p1, p2, p3, normal }
+  }
 }
 
 #[derive(Debug)]
@@ -138,7 +175,7 @@ fn main() {
 
   let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
   
-  let mut camera = Camera::new(Point3D { x: 0.0, y: 0.0, z: -5.0 }, 90.0);
+  let mut camera = Camera::new(Point3D { x: -10.0, y: 0.0, z: -10.0 }, 90.0);
 
   let cube = Cube::new(Point3D {x: 0.0, y: 0.0, z: 0.0});
   let cube2 = Cube::new(Point3D {x: 2.0, y: 0.0, z: 0.0});
@@ -148,10 +185,11 @@ fn main() {
   // let mut triangles = all_cube_faces(&cubes);
   let mut triangles = vec![];
   let data = read_data("teapot_data.txt").unwrap();
-  let off_data = read_off_file("m505.off").unwrap();
+  let off_data = read_off_file("m114.off").unwrap();
+  let obj_data = read_obj_file("Mesh_Cat.obj").unwrap(); 
   // let mut off_indices: Vec<Point3D> = off_data.0;
-  let mut off_triangles: Vec<Triangle3D> = off_data.1;
-
+  //let mut off_triangles: Vec<Triangle3D> = off_data.1;
+  let mut off_triangles: Vec<Triangle3D> = obj_data;
   let indices: Vec<Point3D> = data.0;
   let bezier_patches: Vec<BezierPatch> = data.1;
   let mut tri: Vec<Vec<Triangle3D>> = Vec::new(); 
@@ -233,12 +271,13 @@ fn main() {
     }
     // dbg!(camera.position);
     buffer.iter_mut().for_each(|p| *p = 0);
-    triangles.sort_by(|a, b| {
+    off_triangles.sort_by(|a, b| {
         let depth_a = average_depth(a, &camera);
         let depth_b = average_depth(b, &camera);
         depth_b.partial_cmp(&depth_a).unwrap_or(std::cmp::Ordering::Equal)
     });
-    for triangle in &triangles {
+
+    for triangle in &off_triangles {
       fill_triangle3d(&mut buffer, WIDTH, HEIGHT, triangle, &camera, 0xFF0000); // Fill triangle with red
       if show_wireframe { 
         draw_triangle3d(&mut buffer, WIDTH, HEIGHT, triangle, &camera, 0xffffff);
@@ -257,38 +296,8 @@ fn average_depth(triangle: &Triangle3D, camera: &Camera) -> f32 {
   (p1.z + p2.z + p3.z) / 3.0
 }
 
-fn all_cube_faces(cubes: &[Cube]) -> Vec<Triangle3D> {
-    let mut all_triangles = Vec::new();
-
-    for cube in cubes {
-        let triangles = cube_faces(cube);
-        all_triangles.extend(triangles);
-    }
-
-    all_triangles
-}
-
-fn cube_faces(cube: &Cube) -> Vec<Triangle3D> {
-  vec![
-    // Front face
-    Triangle3D { p1: cube.vertices[0], p2: cube.vertices[1], p3: cube.vertices[2] },
-    Triangle3D { p1: cube.vertices[1], p2: cube.vertices[3], p3: cube.vertices[2] },
-    // Right face
-    Triangle3D { p1: cube.vertices[1], p2: cube.vertices[5], p3: cube.vertices[3] },
-    Triangle3D { p1: cube.vertices[5], p2: cube.vertices[7], p3: cube.vertices[3] },
-    // Back face
-    Triangle3D { p1: cube.vertices[5], p2: cube.vertices[4], p3: cube.vertices[7] },
-    Triangle3D { p1: cube.vertices[4], p2: cube.vertices[6], p3: cube.vertices[7] },
-    // Left face
-    Triangle3D { p1: cube.vertices[4], p2: cube.vertices[0], p3: cube.vertices[6] },
-    Triangle3D { p1: cube.vertices[0], p2: cube.vertices[2], p3: cube.vertices[6] },
-    // Top face
-    Triangle3D { p1: cube.vertices[4], p2: cube.vertices[5], p3: cube.vertices[0] },
-    Triangle3D { p1: cube.vertices[5], p2: cube.vertices[1], p3: cube.vertices[0] },
-    // Bottom face
-    Triangle3D { p1: cube.vertices[2], p2: cube.vertices[3], p3: cube.vertices[6] },
-    Triangle3D { p1: cube.vertices[3], p2: cube.vertices[7], p3: cube.vertices[6] },
-  ]
+fn is_on_screen(point: &Point3D, width: usize, height: usize) -> bool {
+    point.x >= 0.0 && point.x < width as f32 && point.y >= 0.0 && point.y < height as f32
 }
 
 fn draw_triangle3d(buffer: &mut Vec<u32>, width: usize, height: usize, triangle: &Triangle3D, camera: &Camera, color: u32) {
@@ -296,10 +305,10 @@ fn draw_triangle3d(buffer: &mut Vec<u32>, width: usize, height: usize, triangle:
     let p2 = camera.project(&triangle.p2, width, height);
     let p3 = camera.project(&triangle.p3, width, height);
 
-
-    let edge1 = vector_sub(&triangle.p1, &triangle.p2);
-    let edge2 = vector_sub(&triangle.p1, &triangle.p3);
-    let normal = cross_product(&edge1, &edge2);
+    // Check if all vertices are off-screen
+    if !is_on_screen(&p1, width, height) && !is_on_screen(&p2, width, height) && !is_on_screen(&p3, width, height) {
+        return; // Skip drawing this triangle entirely if all points are off-screen
+    }
 
     let centroid = Point3D {
         x: (triangle.p1.x + triangle.p2.x + triangle.p3.x) / 3.0,
@@ -309,7 +318,7 @@ fn draw_triangle3d(buffer: &mut Vec<u32>, width: usize, height: usize, triangle:
 
     let view_direction = vector_sub(&centroid, &camera.position);
 
-    if dot_product(&normal, &view_direction) > 0.0 {  // Reverse condition to > 0.0 if normals are outward
+    if dot_product(&triangle.normal, &view_direction) > 0.0 {  // Reverse condition to > 0.0 if normals are outward
       if p1.z > 0.1 && p2.z > 0.1 && p3.z > 0.1 {
         draw_line(buffer, width, &p1, &p2, color);
         draw_line(buffer, width, &p2, &p3, color);
@@ -397,10 +406,10 @@ fn fill_triangle3d(buffer: &mut Vec<u32>, width: usize, height: usize, triangle:
     let p2 = camera.project(&triangle.p2, width, height);
     let p3 = camera.project(&triangle.p3, width, height);
 
-    let edge1 = vector_sub(&triangle.p1, &triangle.p2);
-    let edge2 = vector_sub(&triangle.p1, &triangle.p3);
-    let normal = cross_product(&edge1, &edge2);
-
+    // Check if all vertices are off-screen
+    if !is_on_screen(&p1, width, height) && !is_on_screen(&p2, width, height) && !is_on_screen(&p3, width, height) {
+        return; // Skip drawing this triangle entirely if all points are off-screen
+    }
     let centroid = Point3D {
         x: (triangle.p1.x + triangle.p2.x + triangle.p3.x) / 3.0,
         y: (triangle.p1.y + triangle.p2.y + triangle.p3.y) / 3.0,
@@ -409,7 +418,7 @@ fn fill_triangle3d(buffer: &mut Vec<u32>, width: usize, height: usize, triangle:
 
     let view_direction = vector_sub(&centroid, &camera.position);
 
-    if dot_product(&normal, &view_direction) > 0.0 {  // Reverse condition to > 0.0 if normals are outward
+    if dot_product(&triangle.normal, &view_direction) > 0.0 {  // Reverse condition to > 0.0 if normals are outward
       if p1.z > 0.1 && p2.z > 0.1 && p3.z > 0.1 {
         fill_triangle(&p1, &p2, &p3, color, buffer);
       }
@@ -501,6 +510,51 @@ fn read_data<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<BezierPat
     Ok((vertices, patches))
 }
 
+fn read_obj_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<Triangle3D>> {
+  let file = File::open(path)?;
+  let reader = io::BufReader::new(file);
+
+  let mut vertices = Vec::new();
+  let mut triangles = Vec::new();
+
+  for line in reader.lines() {
+    let line = line?;
+    let mut parts = line.split_whitespace();
+    match parts.next() {
+      Some("v") => {
+        let x = parts.next().unwrap().parse::<f32>().unwrap();
+        let y = parts.next().unwrap().parse::<f32>().unwrap();
+        let z = parts.next().unwrap().parse::<f32>().unwrap();
+        vertices.push(Point3D { x, y, z });
+      },
+      Some("f") => {
+        let idx: Vec<usize> = parts.map(|part| part.split('/').next().unwrap().parse::<usize>().unwrap() - 1).collect();
+        match idx.len() {
+          3 => {
+            // Create a triangle from vertices
+            let triangle = Triangle3D::new(vertices[idx[0]].clone(), vertices[idx[1]].clone(), vertices[idx[2]].clone());
+            triangles.push(triangle);
+          },
+          4 => {
+            // Create two triangles from a quadrilateral face
+            let triangle1 = Triangle3D::new(vertices[idx[0]].clone(), vertices[idx[1]].clone(), vertices[idx[2]].clone());
+            let triangle2 = Triangle3D::new(vertices[idx[2]].clone(), vertices[idx[3]].clone(), vertices[idx[0]].clone());
+
+            triangles.push(triangle1);
+            triangles.push(triangle2);
+          },
+          _ => {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Unsupported face vertex count"));
+          }
+        }
+      }
+      _ => {}
+    }
+  }
+
+  Ok(triangles)
+}
+
 fn read_off_file<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<Triangle3D> )> {
     let file = File::open(path)?;
     let reader = io::BufReader::new(file);
@@ -539,7 +593,8 @@ fn read_off_file<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<Trian
             .map(|s| s.parse().unwrap())
             .collect();
         if indices.len() == 3 {
-            triangles.push(Triangle3D { p1: *vertices.get(indices[0]).unwrap(), p2: *vertices.get(indices[1]).unwrap(), p3: *vertices.get(indices[2]).unwrap()});
+          let triangle = Triangle3D::new(*vertices.get(indices[0]).unwrap(), *vertices.get(indices[1]).unwrap(), *vertices.get(indices[2]).unwrap());
+            triangles.push(triangle);
         } else {
             return Err(io::Error::new(io::ErrorKind::InvalidData, "Face is not a triangle"));
         }
@@ -624,8 +679,10 @@ fn tessellate_bezier_patch(control_points: &Vec<Point3D>, resolution: usize) -> 
             let p2 = evaluate_bezier_patch(control_points, u + step, v);
             let p3 = evaluate_bezier_patch(control_points, u, v + step);
             let p4 = evaluate_bezier_patch(control_points, u + step, v + step);
-            triangles.push(Triangle3D { p1, p2, p3 });
-            triangles.push(Triangle3D { p2, p3: p4, p1: p3 });
+            let triangle1 = Triangle3D::new(p1, p2, p3);
+            let triangle2 = Triangle3D::new(p3, p2, p4);
+            triangles.push(triangle1);
+            triangles.push(triangle2);
         }
     }
     triangles

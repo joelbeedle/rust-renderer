@@ -148,6 +148,10 @@ fn main() {
   // let mut triangles = all_cube_faces(&cubes);
   let mut triangles = vec![];
   let data = read_data("teapot_data.txt").unwrap();
+  let off_data = read_off_file("m505.off").unwrap();
+  // let mut off_indices: Vec<Point3D> = off_data.0;
+  let mut off_triangles: Vec<Triangle3D> = off_data.1;
+
   let indices: Vec<Point3D> = data.0;
   let bezier_patches: Vec<BezierPatch> = data.1;
   let mut tri: Vec<Vec<Triangle3D>> = Vec::new(); 
@@ -173,6 +177,8 @@ fn main() {
   const MOVE_SPEED: f32 = 0.05;
 
   const ROTATE_SPEED: f32 = 0.01;
+
+  let mut show_wireframe: bool = false;
 
   while window.is_open() && !window.is_key_down(Key::Escape) {
     // Adjust x and y based on user input
@@ -222,6 +228,9 @@ fn main() {
     if window.is_key_down(Key::Down) {
       camera.pitch -= ROTATE_SPEED;
     }
+    if window.is_key_released(Key::T) {
+      show_wireframe = !show_wireframe;
+    }
     // dbg!(camera.position);
     buffer.iter_mut().for_each(|p| *p = 0);
     triangles.sort_by(|a, b| {
@@ -231,7 +240,9 @@ fn main() {
     });
     for triangle in &triangles {
       fill_triangle3d(&mut buffer, WIDTH, HEIGHT, triangle, &camera, 0xFF0000); // Fill triangle with red
-      // draw_triangle3d(&mut buffer, WIDTH, HEIGHT, triangle, &camera, 0xffffff);
+      if show_wireframe { 
+        draw_triangle3d(&mut buffer, WIDTH, HEIGHT, triangle, &camera, 0xffffff);
+      }
     }
 
     camera.update_vectors();
@@ -488,6 +499,53 @@ fn read_data<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<BezierPat
     }
 
     Ok((vertices, patches))
+}
+
+fn read_off_file<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<Triangle3D> )> {
+    let file = File::open(path)?;
+    let reader = io::BufReader::new(file);
+    let mut lines = reader.lines();
+
+    // Read the first line to confirm it's an OFF file
+    let first_line = lines.next().unwrap()?;
+    if first_line.trim() != "OFF" {
+        return Err(io::Error::new(io::ErrorKind::InvalidData, "Not an OFF file"));
+    }
+
+    // Read the second line to get counts
+    let second_line = lines.next().unwrap()?;
+    let counts: Vec<usize> = second_line.split_whitespace()
+        .map(|s| s.parse().unwrap())
+        .collect();
+    let vertex_count = counts[0];
+    let face_count = counts[1];
+
+    // Read vertices
+    let mut vertices = Vec::with_capacity(vertex_count);
+    for _ in 0..vertex_count {
+        let line = lines.next().unwrap()?;
+        let coords: Vec<f32> = line.split_whitespace()
+            .map(|s| s.parse().unwrap())
+            .collect();
+        vertices.push(Point3D { x: coords[0], y: coords[1], z: coords[2] });
+    }
+
+    // Read faces (triangles)
+    let mut triangles : Vec<Triangle3D> = Vec::with_capacity(face_count);
+    for _ in 0..face_count {
+        let line = lines.next().unwrap()?;
+        let indices: Vec<usize> = line.split_whitespace()
+            .skip(1) // Skip the first number which tells how many vertices in the face
+            .map(|s| s.parse().unwrap())
+            .collect();
+        if indices.len() == 3 {
+            triangles.push(Triangle3D { p1: *vertices.get(indices[0]).unwrap(), p2: *vertices.get(indices[1]).unwrap(), p3: *vertices.get(indices[2]).unwrap()});
+        } else {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, "Face is not a triangle"));
+        }
+    }
+
+    Ok((vertices, triangles))
 }
 
 fn parse_vertex(line: &str) -> Option<Point3D> {

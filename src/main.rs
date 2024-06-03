@@ -4,8 +4,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 
-const WIDTH: usize = 800;
-const HEIGHT: usize = 600;
+const WIDTH: usize = 1200;
+const HEIGHT: usize = 800;
 
 #[derive(Copy, Clone, Debug)]
 struct Point3D {
@@ -289,7 +289,7 @@ fn main() {
   let mut triangles = vec![];
   let data = read_data("teapot_data.txt").unwrap();
   let off_data = read_off_file("m114.off").unwrap();
-  let obj_data = read_obj_file("Mesh_Cat.obj").unwrap();
+  let obj_data = read_obj_file("Dixie_V2.obj").unwrap();
   // let mut off_indices: Vec<Point3D> = off_data.0;
   //let mut off_triangles: Vec<Triangle3D> = off_data.1;
   let mut off_triangles: Vec<Triangle3D> = obj_data;
@@ -302,7 +302,7 @@ fn main() {
     for point in patch.indices {
       itopoint.push(*indices.get(point - 1).unwrap());
     }
-    let temp = tessellate_bezier_patch(&itopoint, 6);
+    let temp = tessellate_bezier_patch(&itopoint, 12);
     tri.push(temp);
   }
   for t in tri {
@@ -311,7 +311,7 @@ fn main() {
     }
   }
 
-  const MOVE_SPEED: f32 = 0.1;
+  const MOVE_SPEED: f32 = 0.01;
 
   const ROTATE_SPEED: f32 = 0.01;
 
@@ -432,7 +432,7 @@ fn compute_lighting_all(
   let specular_intensity = 0.9;
   let shininess = 128.0; // Shininess coefficient for specular highlights
 
-  let light_direction = vector_sub(light_position, point_position).normalize();
+  let light_direction = point_position.subtract(&light_position).normalize();
   let view_direction = vector_sub(camera_position, point_position).normalize();
   let reflect_direction = reflect_vector(&(light_direction), &normal);
 
@@ -462,12 +462,11 @@ fn compute_lighting_linatten(vertex: &mut Vertex3D, light_position: &Point3D) ->
   let normal: Point3D = vertex.normal;
   let point_position: Point3D = vertex.position;
   let (r_a, g_a, b_a) = color_to_rgb_f32(0xff_00_00);
-  // let light_direction = light_position.subtract(&point_position).normalize();
-  let light_direction = vector_sub(light_position, &point_position);
+  let light_direction = point_position.subtract(&light_position).normalize();
   let distance = light_direction.magnitude();
   let attenuation = 1.0 / (1.0 + 0.01 * distance); // Linear attenuation
 
-  let dot_product = normal.dot(&light_direction.normalize()).max(0.05);
+  let dot_product = normal.dot(&light_direction).max(0.05);
   let light_intensity = dot_product * attenuation;
   let brightness = (light_intensity * 255.0) as u8;
   let ambient_intensity = 0.7;
@@ -493,17 +492,17 @@ fn compute_lighting_flat_linatten(
   light_position: &Point3D,
   point_position: &Point3D,
 ) -> u32 {
-  let (r_a, g_a, b_a) = color_to_rgb_f32(0xff_00_00);
-  // let light_direction = light_position.subtract(&point_position).normalize();
-  let light_direction = vector_sub(light_position, &point_position);
+  let (r_a, g_a, b_a) = color_to_rgb_f32(0xd1c7c0);
+  let light_direction = point_position.subtract(&light_position).normalize();
+  //let light_direction = light_position.subtract(&point_position).normalize();
   let distance = light_direction.magnitude();
   let attenuation = 1.0 / (1.0 + 0.01 * distance); // Linear attenuation
 
-  let dot_product = normal.dot(&light_direction.normalize()).max(0.05);
+  let dot_product = normal.dot(&light_direction).max(0.05);
   let light_intensity = dot_product * attenuation;
   let brightness = (light_intensity * 255.0) as u8;
-  let ambient_intensity = 0.7;
-  let diffuse_intensity = 0.9;
+  let ambient_intensity = 0.1;
+  let diffuse_intensity = 0.5;
   let r = ((r_a * (ambient_intensity + light_intensity * diffuse_intensity)) * 255.0) as u8;
   let g = ((g_a * (ambient_intensity + light_intensity * diffuse_intensity)) * 255.0) as u8;
   let b = ((b_a * (ambient_intensity + light_intensity * diffuse_intensity)) * 255.0) as u8;
@@ -779,6 +778,12 @@ fn fill_triangle3d(
     z: 40.0,
   };
 
+  let light_pos2 = Point3D {
+    x: 11.0,
+    y: 16.0,
+    z: 58.0,
+  };
+
   let view_direction = vector_sub(&centroid, &camera.position);
   if dot_product(&triangle.normal, &view_direction) > 0.0 {
     // triangle.v1.color =
@@ -788,7 +793,7 @@ fn fill_triangle3d(
     //triangle.v3.color =
     //    compute_lighting_all(&mut triangle.v3, &light_position, &camera.position);
 
-    let c = compute_lighting_flat_linatten(&mut triangle.normal, &light_position, &centroid);
+    let c = compute_lighting_flat_linatten(&mut triangle.normal, &camera.position, &centroid);
 
     if p1.z > 0.1 && p2.z > 0.1 && p3.z > 0.1 {
       fill_triangle(&p1, &p2, &p3, c as u32, buffer);
@@ -913,7 +918,7 @@ fn read_obj_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<Triangle3D>> {
         normals.push(Point3D { x, y, z });
       }
       Some("f") => {
-        let indices: Vec<(usize, Option<usize>, Option<usize>)> = parts
+        let mut indices: Vec<(usize, Option<usize>, Option<usize>)> = parts
           .map(|part| {
             let mut indices = part.split('/');
             let vertex_idx = indices.next().unwrap().parse::<usize>().unwrap() - 1;
@@ -941,59 +946,86 @@ fn read_obj_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<Triangle3D>> {
             (vertex_idx, tex_idx, norm_idx)
           })
           .collect();
+
+        if indices.iter().any(|(_, _, n)| n.is_none()) {
+          let normal = compute_normal(
+            &vertices[indices[0].0],
+            &vertices[indices[1].0],
+            &vertices[indices[2].0],
+          );
+          normals.push(normal);
+          let normal_index = normals.len() - 1; // Index of the newly added normal
+
+          // Update all indices to use this normal
+          indices
+            .iter_mut()
+            .for_each(|&mut (_, _, ref mut n)| *n = Some(normal_index));
+        }
+
         // let idx: Vec<usize> = parts.map(|part| part.split('/').next().unwrap().parse::<usize>().unwrap() - 1).collect();
         match indices.len() {
           3 => {
-            // Create a triangle from vertices
-            let vertex1: Vertex3D = Vertex3D {
-              position: vertices[indices[0].0].clone(),
-              normal: normals[indices[0].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let vertex2: Vertex3D = Vertex3D {
-              position: vertices[indices[1].0].clone(),
-              normal: normals[indices[1].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let vertex3: Vertex3D = Vertex3D {
-              position: vertices[indices[2].0].clone(),
-              normal: normals[indices[2].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let triangle = Triangle3D::new(vertex1, vertex2, vertex3);
-            triangles.push(triangle);
+            // Triangles
+            triangles.push(create_triangle(&vertices, &normals, &indices));
           }
           4 => {
-            // Create two triangles from a quadrilateral face
-            let vertex1: Vertex3D = Vertex3D {
-              position: vertices[indices[0].0].clone(),
-              normal: normals[indices[0].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let vertex2: Vertex3D = Vertex3D {
-              position: vertices[indices[1].0].clone(),
-              normal: normals[indices[1].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let vertex3: Vertex3D = Vertex3D {
-              position: vertices[indices[2].0].clone(),
-              normal: normals[indices[2].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let vertex4: Vertex3D = Vertex3D {
-              position: vertices[indices[3].0].clone(),
-              normal: normals[indices[3].2.unwrap()].clone(),
-              color: 0xff_00_00,
-            };
-            let triangle1 = Triangle3D::new(vertex1.clone(), vertex2.clone(), vertex3.clone());
-            let triangle2 = Triangle3D::new(vertex3.clone(), vertex4.clone(), vertex1.clone());
-            triangles.push(triangle1);
-            triangles.push(triangle2);
+            // Quadrilaterals
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[1], indices[2]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[2], indices[3], indices[0]],
+            ));
+          }
+          5 => {
+            // Pentagons
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[1], indices[2]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[2], indices[3]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[3], indices[4]],
+            ));
+          }
+          6 => {
+            // Hexagons: Triangulate from the first vertex
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[1], indices[2]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[2], indices[3]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[3], indices[4]],
+            ));
+            triangles.push(create_triangle(
+              &vertices,
+              &normals,
+              &[indices[0], indices[4], indices[5]],
+            ));
           }
           _ => {
             return Err(io::Error::new(
               io::ErrorKind::InvalidData,
-              "Unsupported face vertex count",
+              format!("Unsupported face vertex count: {}", indices.len()),
             ));
           }
         }
@@ -1003,6 +1035,20 @@ fn read_obj_file<P: AsRef<Path>>(path: P) -> io::Result<Vec<Triangle3D>> {
   }
 
   Ok(triangles)
+}
+
+fn compute_normal(p1: &Point3D, p2: &Point3D, p3: &Point3D) -> Point3D {
+  let u = Point3D {
+    x: p2.x - p1.x,
+    y: p2.y - p1.y,
+    z: p2.z - p1.z,
+  };
+  let v = Point3D {
+    x: p3.x - p1.x,
+    y: p3.y - p1.y,
+    z: p3.z - p1.z,
+  };
+  u.cross(&v).normalize()
 }
 
 fn read_off_file<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<Triangle3D>)> {
@@ -1085,6 +1131,30 @@ fn read_off_file<P: AsRef<Path>>(path: P) -> io::Result<(Vec<Point3D>, Vec<Trian
   }
 
   Ok((vertices, triangles))
+}
+
+fn create_triangle(
+  vertices: &Vec<Point3D>,
+  normals: &Vec<Point3D>,
+  indices: &[(usize, Option<usize>, Option<usize>)],
+) -> Triangle3D {
+  Triangle3D::new(
+    Vertex3D {
+      position: vertices[indices[0].0].clone(),
+      normal: normals[indices[0].2.unwrap()].clone(),
+      color: 0xff_00_00,
+    },
+    Vertex3D {
+      position: vertices[indices[1].0].clone(),
+      normal: normals[indices[1].2.unwrap()].clone(),
+      color: 0xff_00_00,
+    },
+    Vertex3D {
+      position: vertices[indices[2].0].clone(),
+      normal: normals[indices[2].2.unwrap()].clone(),
+      color: 0xff_00_00,
+    },
+  )
 }
 
 fn parse_vertex(line: &str) -> Option<Point3D> {

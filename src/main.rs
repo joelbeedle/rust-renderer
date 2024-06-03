@@ -50,9 +50,9 @@ fn main() {
   let cubes: Vec<Cube> = vec![cube, cube2, cube3, cube4];
   // let mut triangles = all_cube_faces(&cubes);
   let mut triangles = vec![];
-  let data = io::read_data("../teapot_data.txt").unwrap();
-  let off_data = io::read_off_file("../m114.off").unwrap();
-  let obj_data = io::read_obj_file("../Dixie_V2.obj").unwrap();
+  let data = io::read_data("models/teapot_data.txt").unwrap();
+  let off_data = io::read_off_file("models/m114.off").unwrap();
+  let obj_data = io::read_obj_file("models/Dixie_V2.obj").unwrap();
   // let mut off_indices: Vec<Point3D> = off_data.0;
   //let mut off_triangles: Vec<Triangle3D> = off_data.1;
   let mut off_triangles: Vec<Triangle3D> = obj_data;

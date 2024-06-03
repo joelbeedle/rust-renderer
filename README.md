@@ -10,11 +10,11 @@ Also has support for Bézier patch conversions into triangles at varying resolut
 
 ## Features
 
-- Back-face culling
-- Painters algorithm
-- Flat Shading
-- Gouraud Shading
-- Phong Shading
+- [Back-face culling](https://en.wikipedia.org/wiki/Back-face_culling)
+- [Painters algorithm](https://en.wikipedia.org/wiki/Painter%27s_algorithm)
+- [Flat Shading](https://en.wikipedia.org/w/index.php?title=Shading&section=13#Flat_shading)
+- [Gouraud Shading](https://en.wikipedia.org/wiki/Gouraud_shading)
+- [Phong Shading](https://en.wikipedia.org/wiki/Phong_shading)
 
 ## TODO
 

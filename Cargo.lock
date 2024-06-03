@@ -267,7 +267,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "minifb_triangle"
+name = "minifb_renderer"
 version = "0.1.0"
 dependencies = [
  "minifb",

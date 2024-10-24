@@ -16,6 +16,8 @@ Also has support for Bézier patch conversions into triangles at varying resolut
 - [Gouraud Shading](https://en.wikipedia.org/wiki/Gouraud_shading)
 - [Phong Shading](https://en.wikipedia.org/wiki/Phong_shading)
 
+<img width="560" alt="image" src="https://github.com/user-attachments/assets/e9407655-4236-4ebd-ae29-416a989cf2f5">
+
 ## TODO
 
 - [ ] Add depth buffer

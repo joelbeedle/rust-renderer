@@ -1,8 +1,10 @@
 # rust-renderer
 
-Fun project I did to help me to learn rust.
+Toy rendering project that helped me to learn rust.
 
-Essentially a renderer that can take a 3D model and render it, using only `minifb` for the window and frame buffer creation.
+In essence, it's a renderer that can take any 3D model and render it. It doesn't use GPU acceleration, only `minifb` for the window and a frame buffer.
+
+All rendering, camera, projection is done manually, writing pixels to the framebuffer (essentially an array of pixels). This means it's slow, but allowed me to focus on the things that were interesting in the project.
 
 It can take `.obj` and `.off` files and render them, with multiple types of lighting available.
 
@@ -17,11 +19,3 @@ Also has support for Bézier patch conversions into triangles at varying resolut
 - [Phong Shading](https://en.wikipedia.org/wiki/Phong_shading)
 
 <img width="560" alt="image" src="https://github.com/user-attachments/assets/e9407655-4236-4ebd-ae29-416a989cf2f5">
-
-## TODO
-
-- [ ] Add depth buffer
-- [ ] Formalise functions to make it easier to use
-- [ ] Allow lighting selections
-- [ ] Simplify example binary
-- [ ] Textures?

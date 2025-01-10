@@ -1,6 +1,6 @@
 # rust-renderer
 
-Toy rendering project that helped me to learn rust.
+Rendering project that helped me to learn rust.
 
 In essence, it's a renderer that can take any 3D model and render it. It doesn't use GPU acceleration, only `minifb` for the window and a frame buffer.
 
